@@ -6,6 +6,7 @@ using Azure;
 using Azure.Storage;
 using Azure.Storage.Files.DataLake;
 using Azure.Storage.Files.DataLake.Models;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -15,104 +16,88 @@ namespace UploadFile.WebUI.Pages.Storage
 {
     public class IndexModel : PageModel
     {
-        public string AccountKey { get; set; } = "5lnkBHbFAmKF2CXp1w2osGQiA+l1xOOosIUBHkjZyE6HXECDBsr6++EoTQ0ZBfM9Kk18LI+7/RYXpEBVPmwvpg==";
-        public string AccountName { get; set; } = "stupfielddev";
+        public const string AccountKey = "5lnkBHbFAmKF2CXp1w2osGQiA+l1xOOosIUBHkjZyE6HXECDBsr6++EoTQ0ZBfM9Kk18LI+7/RYXpEBVPmwvpg==";
+        public const string AccountName = "stupfielddev";
+        public const string ContainerName = "radit";
+        public const string FolderName = "folder-1";
 
-        public Uri Urii { get; set; } = new Uri("https://stupfielddev.blob.core.windows.net");
         public Uri UriFile { get; set; } = new Uri("C:\\");
 
-        public DataLakeFileSystemClient FileSystemClient { get; set; }
-        public FileFolders FileFolders { get; set; }
+        public AzureFolder AzureFolder { get; set; }
 
-        public string Message { get; set; }
+        private readonly IWebHostEnvironment _webHostEnvironment;
+
+        public IndexModel(IWebHostEnvironment webHostEnvironment)
+        {
+            _webHostEnvironment = webHostEnvironment;
+        }
+
         [BindProperty]
-        public IFormFile Upload { get; set; }
+        public IFormFile FormFileUpload { get; set; }
 
         public async Task OnGet()
         {
-            var dataLakeServiceClient = new DataLakeServiceClient(Urii);
-            var ress = await GetDataLakeServiceClient(dataLakeServiceClient, AccountName, AccountKey);
-            this.FileSystemClient = ress;
-
-            var resFile = await ListFilesInDirectory(this.FileSystemClient);
-            this.FileFolders = resFile;
+            this.AzureFolder = await GetAzureFolder();
         }
 
         public async Task OnPostDownload(string nameFile)
         {
-            var dataLakeServiceClient = new DataLakeServiceClient(Urii);
-            var ress = await GetDataLakeServiceClient(dataLakeServiceClient, AccountName, AccountKey);
-            this.FileSystemClient = ress;
-
-            var resFile = await ListFilesInDirectory(this.FileSystemClient);
-            this.FileFolders = resFile;
+            this.AzureFolder = await GetAzureFolder();
 
             var Text = nameFile.Split("/");
-            await DownloadFile(this.FileSystemClient, Text[1]);
+            await DownloadFile(Text[1]);
         }
 
         public async Task OnPostUpload()
         {
-            var dataLakeServiceClient = new DataLakeServiceClient(Urii);
-            var ress = await GetDataLakeServiceClient(dataLakeServiceClient, AccountName, AccountKey);
-            this.FileSystemClient = ress;
+            string filename = System.Net.Http.Headers.ContentDispositionHeaderValue.Parse(FormFileUpload.ContentDisposition).FileName.Trim('"');
 
-            this.Message = Upload.FileName;
-            var file = Path.Combine(Directory.GetCurrentDirectory(), "uploads", Upload.FileName);
-            var fileStream = new FileStream(file, FileMode.Create);
-            await Upload.CopyToAsync(fileStream);
-            await UploadFile(ress, fileStream, Upload.FileName);
+            filename = EnsureCorrectFilename(filename);
 
-            var resFile = await ListFilesInDirectory(this.FileSystemClient);
-            this.FileFolders = resFile;
+            string fullPath = this.GetPathAndFilenameForUpload(filename);
+
+            using (var output = System.IO.File.Create(fullPath))
+            {
+                await FormFileUpload.CopyToAsync(output);
+            }
+
+            await UploadFile(fullPath);
+
+            this.AzureFolder = await GetAzureFolder();
         }
 
         public async Task OnPostDelete(string nameFile)
         {
-            var dataLakeServiceClient = new DataLakeServiceClient(Urii);
-            var ress = await GetDataLakeServiceClient(dataLakeServiceClient, AccountName, AccountKey);
-            this.FileSystemClient = ress;
+            var fileName = nameFile.Split("/")[1];
+            await DeleteFile(fileName);
 
-            var Text = nameFile.Split("/");
-            await DeleteFile(ress, Text[1]);
-
-            var resFile = await ListFilesInDirectory(this.FileSystemClient);
-            this.FileFolders = resFile;
-
+            this.AzureFolder = await GetAzureFolder();
         }
 
-        public async Task<DataLakeFileSystemClient> GetDataLakeServiceClient(DataLakeServiceClient dataLakeServiceClient, string accountName, string accountKey)
+        public async Task UploadFile(string fullPath)
         {
-            StorageSharedKeyCredential sharedKeyCredential =
-                new StorageSharedKeyCredential(accountName, accountKey);
+            var dataLakeServiceClient = GetDataLakeServiceClient();
+            var dataLakeFileSystemClient = dataLakeServiceClient.GetFileSystemClient(ContainerName);
+            var directoryClient = dataLakeFileSystemClient.GetDirectoryClient(FolderName);
 
-            string dfsUri = "https://" + accountName + ".dfs.core.windows.net";
+            string fileName = Path.GetFileName(fullPath);
 
-            dataLakeServiceClient = new DataLakeServiceClient
-                (new Uri(dfsUri), sharedKeyCredential);
+            DataLakeFileClient fileClient = await directoryClient.CreateFileAsync(fileName);
 
-            return dataLakeServiceClient.GetFileSystemClient("radit");
-        }
-
-        public async Task UploadFile(DataLakeFileSystemClient fileSystemClient, FileStream fileStream, string nameFile)
-        {
-            DataLakeDirectoryClient directoryClient =
-                fileSystemClient.GetDirectoryClient("folder-1");
-
-            DataLakeFileClient fileClient = await directoryClient.CreateFileAsync(nameFile);
-
+            using var fileStream = System.IO.File.OpenRead(fullPath);
             long fileSize = fileStream.Length;
-
             await fileClient.AppendAsync(fileStream, offset: 0);
-
             await fileClient.FlushAsync(position: fileSize);
         }
 
-        public async Task<FileFolders> ListFilesInDirectory(DataLakeFileSystemClient fileSystemClient)
+        public async Task<AzureFolder> GetAzureFolder()
         {
-            var fileFolders = new FileFolders();
+            var dataLakeServiceClient = GetDataLakeServiceClient();
+            var dataLakeFileSystemClient = dataLakeServiceClient.GetFileSystemClient(ContainerName);
 
-            IAsyncEnumerator<PathItem> enumerator = fileSystemClient.GetPathsAsync("folder-1").GetAsyncEnumerator();
+            var azureFolder = new AzureFolder { Name = FolderName };
+
+            IAsyncEnumerator<PathItem> enumerator = dataLakeFileSystemClient.GetPathsAsync(FolderName).GetAsyncEnumerator();
 
             await enumerator.MoveNextAsync();
 
@@ -120,9 +105,9 @@ namespace UploadFile.WebUI.Pages.Storage
 
             while (item != null)
             {
-                fileFolders.NameFiles.Add(new NameFile
+                azureFolder.Files.Add(new AzureFile
                 {
-                    Name = item.Name.ToString()
+                    Name = item.Name
                 });
 
                 if (!await enumerator.MoveNextAsync())
@@ -133,23 +118,23 @@ namespace UploadFile.WebUI.Pages.Storage
                 item = enumerator.Current;
             }
 
-            return fileFolders;
+            return azureFolder;
         }
 
-        public async Task DownloadFile(DataLakeFileSystemClient fileSystemClient, string nameFile)
+        public async Task DownloadFile(string fileName)
         {
-            DataLakeDirectoryClient directoryClient =
-                fileSystemClient.GetDirectoryClient("folder-1");
-
-            DataLakeFileClient fileClient =
-                directoryClient.GetFileClient(nameFile);
+            var dataLakeServiceClient = GetDataLakeServiceClient();
+            var dataLakeFileSystemClient = dataLakeServiceClient.GetFileSystemClient(ContainerName);
+            var directoryClient = dataLakeFileSystemClient.GetDirectoryClient(FolderName);
+            var fileClient = directoryClient.GetFileClient(fileName);
 
             Response<FileDownloadInfo> downloadResponse = await fileClient.ReadAsync();
 
-            BinaryReader reader = new BinaryReader(downloadResponse.Value.Content);
+            var reader = new BinaryReader(downloadResponse.Value.Content);
 
-            FileStream fileStream =
-                System.IO.File.OpenWrite(Path.Combine(Directory.GetCurrentDirectory(), "downloads", nameFile));
+            string fullPath = GetPathAndFilenameForDownload(fileName);
+
+            var fileStream = System.IO.File.OpenWrite(fullPath);
 
             int bufferSize = 4096;
 
@@ -167,15 +152,41 @@ namespace UploadFile.WebUI.Pages.Storage
             fileStream.Close();
         }
 
-        public async Task DeleteFile(DataLakeFileSystemClient fileSystemClient, string nameFile)
+        public async Task DeleteFile(string fileName)
         {
-            DataLakeDirectoryClient directoryClient =
-                fileSystemClient.GetDirectoryClient("folder-1");
-
-            DataLakeFileClient fileClient =
-                directoryClient.GetFileClient(nameFile);
+            var dataLakeServiceClient = GetDataLakeServiceClient();
+            var dataLakeFileSystemClient = dataLakeServiceClient.GetFileSystemClient(ContainerName);
+            var directoryClient = dataLakeFileSystemClient.GetDirectoryClient(FolderName);
+            var fileClient = directoryClient.GetFileClient(fileName);
 
             await fileClient.DeleteAsync();
+        }
+
+        public static DataLakeServiceClient GetDataLakeServiceClient()
+        {
+            StorageSharedKeyCredential sharedKeyCredential = new StorageSharedKeyCredential(AccountName, AccountKey);
+
+            string dfsUri = "https://" + AccountName + ".dfs.core.windows.net";
+
+            return new DataLakeServiceClient(new Uri(dfsUri), sharedKeyCredential);
+        }
+
+        private string EnsureCorrectFilename(string filename)
+        {
+            if (filename.Contains("\\"))
+                filename = filename.Substring(filename.LastIndexOf("\\") + 1);
+
+            return filename;
+        }
+
+        private string GetPathAndFilenameForUpload(string filename)
+        {
+            return _webHostEnvironment.WebRootPath + "\\uploads\\" + filename;
+        }
+
+        private string GetPathAndFilenameForDownload(string filename)
+        {
+            return _webHostEnvironment.WebRootPath + "\\downloads\\" + filename;
         }
     }
 }

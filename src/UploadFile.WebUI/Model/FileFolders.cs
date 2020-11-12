@@ -2,17 +2,13 @@
 
 namespace UploadFile.WebUI.Model
 {
-    public class FileFolders
+    public class AzureFolder
     {
-        public List<NameFile> NameFiles { get; set; }
-
-        public FileFolders()
-        {
-            this.NameFiles = new List<NameFile>();
-        }
+        public string Name { get; set; }
+        public IList<AzureFile> Files { get; set; } = new List<AzureFile>();
     }
 
-    public class NameFile
+    public class AzureFile
     {
         public string Name { get; set; }
     }

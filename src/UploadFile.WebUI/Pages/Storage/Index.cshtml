@@ -7,11 +7,9 @@
 <h1>File Storage in Azure Storage</h1>
 
 <form method="post" enctype="multipart/form-data" asp-page-handler="Upload">
-    <input type="file" asp-for="@Model.Upload" />
+    <input type="file" asp-for="@Model.FormFileUpload" />
     <input type="submit" />
 </form>
-
-@Model.Message
 
 <table class="table">
     <thead class="thead-dark">
@@ -22,7 +20,7 @@
         </tr>
     </thead>
     <tbody>
-        @foreach (var file in Model.FileFolders.NameFiles)
+        @foreach (var file in Model.AzureFolder.Files)
         {
             <tr>
                 <th scope="row">@no</th>
