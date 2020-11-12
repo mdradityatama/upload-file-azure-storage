@@ -1,0 +1,37 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30611.23
+MinimumVisualStudioVersion = 15.0.26124.0
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UploadFile.WebUI", "src\UploadFile.WebUI\UploadFile.WebUI.csproj", "{31ADC490-9F85-4132-8D82-009AF1D450E5}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|Any CPU = Release|Any CPU
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{31ADC490-9F85-4132-8D82-009AF1D450E5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{31ADC490-9F85-4132-8D82-009AF1D450E5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{31ADC490-9F85-4132-8D82-009AF1D450E5}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{31ADC490-9F85-4132-8D82-009AF1D450E5}.Debug|x64.Build.0 = Debug|Any CPU
+		{31ADC490-9F85-4132-8D82-009AF1D450E5}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{31ADC490-9F85-4132-8D82-009AF1D450E5}.Debug|x86.Build.0 = Debug|Any CPU
+		{31ADC490-9F85-4132-8D82-009AF1D450E5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{31ADC490-9F85-4132-8D82-009AF1D450E5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{31ADC490-9F85-4132-8D82-009AF1D450E5}.Release|x64.ActiveCfg = Release|Any CPU
+		{31ADC490-9F85-4132-8D82-009AF1D450E5}.Release|x64.Build.0 = Release|Any CPU
+		{31ADC490-9F85-4132-8D82-009AF1D450E5}.Release|x86.ActiveCfg = Release|Any CPU
+		{31ADC490-9F85-4132-8D82-009AF1D450E5}.Release|x86.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {06C8858C-5BF1-4794-BA27-CE786CD20B5D}
+	EndGlobalSection
+EndGlobal
