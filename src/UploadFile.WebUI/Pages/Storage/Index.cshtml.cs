@@ -7,7 +7,6 @@ using Azure.Storage;
 using Azure.Storage.Files.DataLake;
 using Azure.Storage.Files.DataLake.Models;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using UploadFile.WebUI.Model;
@@ -16,11 +15,12 @@ namespace UploadFile.WebUI.Pages.Storage
 {
     public class IndexModel : PageModel
     {
-        public const string AccountKey = "5lnkBHbFAmKF2CXp1w2osGQiA+l1xOOosIUBHkjZyE6HXECDBsr6++EoTQ0ZBfM9Kk18LI+7/RYXpEBVPmwvpg==";
-        public const string AccountName = "stupfielddev";
-        public const string ContainerName = "radit";
-        public const string FolderName = "folder-1";
+        public const string AccountKey = "sDnbqLhlZwiEYy56QpxxatfrtX3glPCPWPnd3Pf3crFGwf9kV+DTqr4iuFvhvELHnVjt9TzbVcObP6BxPf532Q==";
+        public const string AccountName = "stupfielddevrennie";
+        public const string ContainerName = "reports";
+        public const string FolderName = "2020-11-13";
 
+        public DateTime DateTime { get; set; } = new DateTime();
         public Uri UriFile { get; set; } = new Uri("C:\\");
 
         public AzureFolder AzureFolder { get; set; }
@@ -33,7 +33,7 @@ namespace UploadFile.WebUI.Pages.Storage
         }
 
         [BindProperty]
-        public IFormFile FormFileUpload { get; set; }
+        public FromFileUpload FormFileUpload { get; set; }
 
         public async Task OnGet()
         {
@@ -45,12 +45,12 @@ namespace UploadFile.WebUI.Pages.Storage
             this.AzureFolder = await GetAzureFolder();
 
             var Text = nameFile.Split("/");
-            await DownloadFile(Text[1]);
+            await DownloadFile(Text[2]);
         }
 
         public async Task OnPostUpload()
         {
-            string filename = System.Net.Http.Headers.ContentDispositionHeaderValue.Parse(FormFileUpload.ContentDisposition).FileName.Trim('"');
+            string filename = System.Net.Http.Headers.ContentDispositionHeaderValue.Parse(FormFileUpload.FileUpload.ContentDisposition).FileName.Trim('"');
 
             filename = EnsureCorrectFilename(filename);
 
@@ -58,7 +58,7 @@ namespace UploadFile.WebUI.Pages.Storage
 
             using (var output = System.IO.File.Create(fullPath))
             {
-                await FormFileUpload.CopyToAsync(output);
+                await FormFileUpload.FileUpload.CopyToAsync(output);
             }
 
             await UploadFile(fullPath);
@@ -78,11 +78,60 @@ namespace UploadFile.WebUI.Pages.Storage
         {
             var dataLakeServiceClient = GetDataLakeServiceClient();
             var dataLakeFileSystemClient = dataLakeServiceClient.GetFileSystemClient(ContainerName);
-            var directoryClient = dataLakeFileSystemClient.GetDirectoryClient(FolderName);
+
+            var directoryDate = dataLakeFileSystemClient.GetDirectoryClient(DateTime.Now.ToString("yyyy-MM-dd"));
+
+            #region Create and Check Folder
+            DataLakeDirectoryClient directoryDistributorCode = null;
+
+            if (!directoryDate.Exists())
+            {
+                dataLakeFileSystemClient.CreateDirectory(DateTime.Now.ToString("yyyy-MM-dd"));
+                directoryDate = dataLakeFileSystemClient.GetDirectoryClient(DateTime.Now.ToString("yyyy-MM-dd"));
+            }
+
+            if (FormFileUpload.Category.ToUpper() == "STOCK")
+            {
+                var directoryStock = directoryDate.GetSubDirectoryClient("Stock");
+
+                if (!directoryStock.Exists())
+                {
+                    directoryDate.GetSubDirectoryClient("Stock");
+                    directoryStock = directoryDate.GetSubDirectoryClient("Stock");
+                }
+
+                directoryDistributorCode = directoryStock.GetSubDirectoryClient(FormFileUpload.DistributorCode);
+
+                if (!directoryDistributorCode.Exists())
+                {
+                    directoryStock.GetSubDirectoryClient(FormFileUpload.DistributorCode);
+                    directoryDistributorCode = directoryStock.GetSubDirectoryClient(FormFileUpload.DistributorCode);
+                }
+            }
+
+            if (FormFileUpload.Category.ToUpper() == "SALE")
+            {
+                var directorySales = directoryDate.GetSubDirectoryClient("Sales");
+
+                if (!directorySales.Exists())
+                {
+                    directoryDate.GetSubDirectoryClient("Sales");
+                    directorySales = directoryDate.GetSubDirectoryClient("Sales");
+                }
+
+                directoryDistributorCode = directorySales.GetSubDirectoryClient(FormFileUpload.DistributorCode);
+
+                if (!directoryDistributorCode.Exists())
+                {
+                    directorySales.GetSubDirectoryClient(FormFileUpload.DistributorCode);
+                    directoryDistributorCode = directorySales.GetSubDirectoryClient(FormFileUpload.DistributorCode);
+                }
+            }
+            #endregion
 
             string fileName = Path.GetFileName(fullPath);
 
-            DataLakeFileClient fileClient = await directoryClient.CreateFileAsync(fileName);
+            DataLakeFileClient fileClient = await directoryDistributorCode.CreateFileAsync(fileName);
 
             using var fileStream = System.IO.File.OpenRead(fullPath);
             long fileSize = fileStream.Length;
@@ -97,28 +146,47 @@ namespace UploadFile.WebUI.Pages.Storage
 
             var azureFolder = new AzureFolder { Name = FolderName };
 
-            IAsyncEnumerator<PathItem> enumerator = dataLakeFileSystemClient.GetPathsAsync(FolderName).GetAsyncEnumerator();
+            var sumFolder = new string[1] {"2020-11-13"};
 
-            await enumerator.MoveNextAsync();
+            var directoryDate = dataLakeFileSystemClient.GetDirectoryClient(FolderName);
+            var directorySales = directoryDate.GetSubDirectoryClient("Sales");
+            Console.WriteLine("path sales: " + directorySales.Path);
 
-            PathItem item = enumerator.Current;
-
-            while (item != null)
+            for (int i = 0; i < sumFolder.Length; i++)
             {
-                azureFolder.Files.Add(new AzureFile
-                {
-                    Name = item.Name
-                });
+                IAsyncEnumerator<PathItem> enumerator = dataLakeFileSystemClient.GetPathsAsync(directorySales.Path).GetAsyncEnumerator();
 
-                if (!await enumerator.MoveNextAsync())
-                {
-                    break;
-                }
+                await enumerator.MoveNextAsync();
 
-                item = enumerator.Current;
+                //if (checkFile)
+                //{
+                //    await CreateDirectory(dataLakeFileSystemClient, pathToday);
+                //}
+
+                PathItem item = enumerator.Current;
+
+                while (item != null)
+                {
+                    azureFolder.Files.Add(new AzureFile
+                    {
+                        Name = item.Name
+                    });
+
+                    if (!await enumerator.MoveNextAsync())
+                    {
+                        break;
+                    }
+
+                    item = enumerator.Current;
+                } 
             }
 
             return azureFolder;
+        }
+        public async Task CreateDirectory(DataLakeFileSystemClient fileSystemClient, string nameDirectory)
+        {
+            await fileSystemClient.CreateDirectoryAsync(nameDirectory + "/Distributor");
+            await GetAzureFolder();
         }
 
         public async Task DownloadFile(string fileName)
